@@ -25,25 +25,78 @@ const ENEMY_SIZE = 40;
 const COIN_SIZE = 20;
 const GOAL_SIZE = 40;
 
-// 關卡資料
-const platforms = [
-  {x:0, y:440, w:800, h:40}, // 地面
-  {x:120, y:360, w:120, h:20},
-  {x:320, y:300, w:100, h:20},
-  {x:500, y:220, w:120, h:20},
-  {x:700, y:160, w:60, h:20},
+// 多關卡資料
+const levels = [
+  {
+    platforms: [
+      {x:0, y:440, w:800, h:40},
+      {x:120, y:360, w:120, h:20},
+      {x:320, y:300, w:100, h:20},
+      {x:500, y:220, w:120, h:20},
+      {x:700, y:160, w:60, h:20},
+    ],
+    coins: [
+      {x:140, y:320, collected:false},
+      {x:350, y:260, collected:false},
+      {x:530, y:180, collected:false},
+      {x:720, y:120, collected:false},
+    ],
+    enemies: [
+      {x:200, y:400, dir:1, minX:200, maxX:320, speed:2, collected:false},
+      {x:520, y:180, dir:-1, minX:500, maxX:620, speed:2, collected:false},
+    ],
+    goal: {x:750, y:120}
+  },
+  {
+    platforms: [
+      {x:0, y:440, w:800, h:40},
+      {x:200, y:360, w:100, h:20},
+      {x:400, y:320, w:100, h:20},
+      {x:600, y:260, w:120, h:20},
+      {x:100, y:200, w:80, h:20},
+    ],
+    coins: [
+      {x:220, y:320, collected:false},
+      {x:420, y:280, collected:false},
+      {x:620, y:220, collected:false},
+      {x:120, y:160, collected:false},
+    ],
+    enemies: [
+      {x:210, y:400, dir:1, minX:200, maxX:300, speed:2, collected:false},
+      {x:410, y:280, dir:-1, minX:400, maxX:500, speed:2, collected:false},
+    ],
+    goal: {x:700, y:220}
+  },
+  {
+    platforms: [
+      {x:0, y:440, w:800, h:40},
+      {x:100, y:380, w:80, h:20},
+      {x:250, y:320, w:80, h:20},
+      {x:400, y:260, w:80, h:20},
+      {x:550, y:200, w:80, h:20},
+      {x:700, y:140, w:80, h:20},
+    ],
+    coins: [
+      {x:120, y:340, collected:false},
+      {x:270, y:280, collected:false},
+      {x:420, y:220, collected:false},
+      {x:570, y:160, collected:false},
+      {x:720, y:100, collected:false},
+    ],
+    enemies: [
+      {x:110, y:400, dir:1, minX:100, maxX:180, speed:2, collected:false},
+      {x:260, y:300, dir:1, minX:250, maxX:330, speed:2, collected:false},
+      {x:410, y:240, dir:-1, minX:400, maxX:480, speed:2, collected:false},
+    ],
+    goal: {x:750, y:100}
+  }
 ];
-const coins = [
-  {x:140, y:320, collected:false},
-  {x:350, y:260, collected:false},
-  {x:530, y:180, collected:false},
-  {x:720, y:120, collected:false},
-];
-const enemies = [
-  {x:200, y:400, dir:1, minX:200, maxX:320, speed:2},
-  {x:520, y:180, dir:-1, minX:500, maxX:620, speed:2},
-];
-const goal = {x:750, y:120};
+let currentLevel = 0;
+let platforms = JSON.parse(JSON.stringify(levels[currentLevel].platforms));
+let coins = JSON.parse(JSON.stringify(levels[currentLevel].coins));
+let enemies = JSON.parse(JSON.stringify(levels[currentLevel].enemies));
+let goal = Object.assign({}, levels[currentLevel].goal);
+let totalScore = 0;
 
 // 玩家
 let player = {
@@ -105,12 +158,14 @@ function updatePlayer() {
 
 function updateEnemies() {
   for (const e of enemies) {
+    if (e.collected) continue;
     e.x += e.dir * e.speed;
     if (e.x < e.minX) { e.x = e.minX; e.dir = 1; }
     if (e.x > e.maxX) { e.x = e.maxX; e.dir = -1; }
     // 與玩家碰撞
-    if (rectsCollide(player, e, PLAYER_SIZE, PLAYER_SIZE, ENEMY_SIZE, ENEMY_SIZE)) {
-      player.alive = false;
+    if (!e.collected && rectsCollide(player, e, PLAYER_SIZE, PLAYER_SIZE, ENEMY_SIZE, ENEMY_SIZE)) {
+      e.collected = true;
+      player.score++;
     }
   }
 }
@@ -126,7 +181,13 @@ function updateCoins() {
 
 function checkGoal() {
   if (rectsCollide(player, goal, PLAYER_SIZE, PLAYER_SIZE, GOAL_SIZE, GOAL_SIZE)) {
-    player.win = true;
+    totalScore += player.score;
+    if (currentLevel < levels.length - 1) {
+      player.score = 0;
+      resetLevel(true);
+    } else {
+      player.win = true;
+    }
   }
 }
 
@@ -150,6 +211,7 @@ function draw() {
   }
   // 蘑菇敵人
   for (const e of enemies) {
+    if (e.collected) continue;
     ctx.fillStyle = '#d22';
     ctx.fillRect(e.x, e.y, ENEMY_SIZE, ENEMY_SIZE);
     ctx.fillStyle = '#fff';
@@ -172,9 +234,22 @@ function draw() {
 }
 
 function showInfo() {
-  if (player.win) info.innerHTML = `過關！分數：${player.score} <br> 按F5重新開始`;
-  else if (!player.alive) info.innerHTML = `失敗！分數：${player.score} <br> 按F5重新開始`;
-  else info.innerHTML = `分數：${player.score} / ${coins.length}`;
+  if (player.win && currentLevel >= levels.length-1) info.innerHTML = `全部過關！總分：${totalScore + player.score} <br> 按F5重新開始`;
+  else if (!player.alive) info.innerHTML = `失敗！分數：${totalScore + player.score} <br> 按F5重新開始`;
+  else info.innerHTML = `關卡：${currentLevel+1} / ${levels.length}　分數：${totalScore + player.score}`;
+}
+
+function resetLevel(next) {
+  if (next) currentLevel++;
+  if (currentLevel >= levels.length) {
+    player.win = true;
+    return;
+  }
+  platforms = JSON.parse(JSON.stringify(levels[currentLevel].platforms));
+  coins = JSON.parse(JSON.stringify(levels[currentLevel].coins));
+  enemies = JSON.parse(JSON.stringify(levels[currentLevel].enemies));
+  goal = Object.assign({}, levels[currentLevel].goal);
+  player.x = 40; player.y = 400; player.vx = 0; player.vy = 0; player.onGround = false; player.win = false; player.alive = true;
 }
 
 function gameLoop() {
@@ -186,6 +261,9 @@ function gameLoop() {
   showInfo();
   requestAnimationFrame(gameLoop);
 }
+
+// 初始化
+resetLevel(false);
 gameLoop();
   </script>
 </body>
