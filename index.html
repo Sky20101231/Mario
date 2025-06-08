@@ -164,8 +164,18 @@ function updateEnemies() {
     if (e.x > e.maxX) { e.x = e.maxX; e.dir = -1; }
     // 與玩家碰撞
     if (!e.collected && rectsCollide(player, e, PLAYER_SIZE, PLAYER_SIZE, ENEMY_SIZE, ENEMY_SIZE)) {
-      e.collected = true;
-      player.score++;
+      // 判斷是否從上方踩到
+      const playerBottom = player.y + PLAYER_SIZE;
+      const enemyTop = e.y;
+      const playerPrevBottom = player.y + PLAYER_SIZE - player.vy;
+      // 只有當玩家的底部在上一幀高於敵人頂部，且這一幀壓到敵人頂部，才算踩到
+      if (player.vy > 0 && playerPrevBottom <= enemyTop + 5) {
+        e.collected = true;
+        player.score++;
+        player.vy = JUMP_POWER / 1.5; // 踩到反彈
+      } else {
+        player.alive = false;
+      }
     }
   }
 }
@@ -182,8 +192,8 @@ function updateCoins() {
 function checkGoal() {
   if (rectsCollide(player, goal, PLAYER_SIZE, PLAYER_SIZE, GOAL_SIZE, GOAL_SIZE)) {
     totalScore += player.score;
+    player.score = 0;
     if (currentLevel < levels.length - 1) {
-      player.score = 0;
       resetLevel(true);
     } else {
       player.win = true;
@@ -234,7 +244,7 @@ function draw() {
 }
 
 function showInfo() {
-  if (player.win && currentLevel >= levels.length-1) info.innerHTML = `全部過關！總分：${totalScore + player.score} <br> 按F5重新開始`;
+  if (player.win && currentLevel >= levels.length-1) info.innerHTML = `全部過關！總分：${totalScore} <br> 按F5重新開始`;
   else if (!player.alive) info.innerHTML = `失敗！分數：${totalScore + player.score} <br> 按F5重新開始`;
   else info.innerHTML = `關卡：${currentLevel+1} / ${levels.length}　分數：${totalScore + player.score}`;
 }
