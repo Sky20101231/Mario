@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Super Mario 方形版</title>
+  <style>
+    body { background: #222; margin: 0; overflow: hidden; }
+    canvas { display: block; margin: 0 auto; background: #87ceeb; }
+    #info { color: #fff; text-align: center; font-family: monospace; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="800" height="480"></canvas>
+  <div id="info"></div>
+  <script>
+// 遊戲參數
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const info = document.getElementById('info');
+const GRAVITY = 0.6;
+const JUMP_POWER = -12;
+const MOVE_SPEED = 5;
+const PLAYER_SIZE = 40;
+const ENEMY_SIZE = 40;
+const COIN_SIZE = 20;
+const GOAL_SIZE = 40;
+
+// 關卡資料
+const platforms = [
+  {x:0, y:440, w:800, h:40}, // 地面
+  {x:120, y:360, w:120, h:20},
+  {x:320, y:300, w:100, h:20},
+  {x:500, y:220, w:120, h:20},
+  {x:700, y:160, w:60, h:20},
+];
+const coins = [
+  {x:140, y:320, collected:false},
+  {x:350, y:260, collected:false},
+  {x:530, y:180, collected:false},
+  {x:720, y:120, collected:false},
+];
+const enemies = [
+  {x:200, y:400, dir:1, minX:200, maxX:320, speed:2},
+  {x:520, y:180, dir:-1, minX:500, maxX:620, speed:2},
+];
+const goal = {x:750, y:120};
+
+// 玩家
+let player = {
+  x: 40, y: 400, vx: 0, vy: 0, onGround: false, alive: true, win: false, score: 0
+};
+
+// 控制
+const keys = {};
+document.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+function rectsCollide(a, b, aw, ah, bw, bh) {
+  return a.x < b.x + bw && a.x + aw > b.x && a.y < b.y + bh && a.y + ah > b.y;
+}
+
+function updatePlayer() {
+  if (!player.alive || player.win) return;
+  // 左右移動
+  if (keys['a']) player.vx = -MOVE_SPEED;
+  else if (keys['d']) player.vx = MOVE_SPEED;
+  else player.vx = 0;
+  // 跳躍
+  if (keys['w'] && player.onGround) {
+    player.vy = JUMP_POWER;
+    player.onGround = false;
+  }
+  // 重力
+  player.vy += GRAVITY;
+  // 移動
+  player.x += player.vx;
+  player.y += player.vy;
+  // 與平台碰撞
+  player.onGround = false;
+  for (const pf of platforms) {
+    if (rectsCollide(player, pf, PLAYER_SIZE, PLAYER_SIZE, pf.w, pf.h)) {
+      // 從上方落下
+      if (player.vy > 0 && player.y + PLAYER_SIZE - player.vy <= pf.y) {
+        player.y = pf.y - PLAYER_SIZE;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (player.vy < 0 && player.y >= pf.y + pf.h - 1) {
+        // 從下方撞到
+        player.y = pf.y + pf.h;
+        player.vy = 0;
+      } else if (player.x + PLAYER_SIZE - player.vx <= pf.x) {
+        // 從左撞到
+        player.x = pf.x - PLAYER_SIZE;
+      } else if (player.x - player.vx >= pf.x + pf.w) {
+        // 從右撞到
+        player.x = pf.x + pf.w;
+      }
+    }
+  }
+  // 不要出界
+  if (player.x < 0) player.x = 0;
+  if (player.x + PLAYER_SIZE > canvas.width) player.x = canvas.width - PLAYER_SIZE;
+  if (player.y > canvas.height) player.alive = false;
+}
+
+function updateEnemies() {
+  for (const e of enemies) {
+    e.x += e.dir * e.speed;
+    if (e.x < e.minX) { e.x = e.minX; e.dir = 1; }
+    if (e.x > e.maxX) { e.x = e.maxX; e.dir = -1; }
+    // 與玩家碰撞
+    if (rectsCollide(player, e, PLAYER_SIZE, PLAYER_SIZE, ENEMY_SIZE, ENEMY_SIZE)) {
+      player.alive = false;
+    }
+  }
+}
+
+function updateCoins() {
+  for (const c of coins) {
+    if (!c.collected && rectsCollide(player, c, PLAYER_SIZE, PLAYER_SIZE, COIN_SIZE, COIN_SIZE)) {
+      c.collected = true;
+      player.score++;
+    }
+  }
+}
+
+function checkGoal() {
+  if (rectsCollide(player, goal, PLAYER_SIZE, PLAYER_SIZE, GOAL_SIZE, GOAL_SIZE)) {
+    player.win = true;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // 平台
+  ctx.fillStyle = '#964B00';
+  for (const pf of platforms) {
+    ctx.fillRect(pf.x, pf.y, pf.w, pf.h);
+  }
+  // 金幣
+  for (const c of coins) {
+    if (!c.collected) {
+      ctx.fillStyle = 'gold';
+      ctx.beginPath();
+      ctx.arc(c.x + COIN_SIZE/2, c.y + COIN_SIZE/2, COIN_SIZE/2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#bfa500';
+      ctx.stroke();
+    }
+  }
+  // 蘑菇敵人
+  for (const e of enemies) {
+    ctx.fillStyle = '#d22';
+    ctx.fillRect(e.x, e.y, ENEMY_SIZE, ENEMY_SIZE);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(e.x+8, e.y+8, 24, 12); // 蘑菇臉
+    ctx.fillStyle = '#222';
+    ctx.fillRect(e.x+14, e.y+14, 4, 4); // 眼睛
+    ctx.fillRect(e.x+22, e.y+14, 4, 4);
+  }
+  // 終點
+  ctx.fillStyle = '#0c0';
+  ctx.fillRect(goal.x, goal.y, GOAL_SIZE, GOAL_SIZE);
+  ctx.fillStyle = '#fff';
+  ctx.font = '20px monospace';
+  ctx.fillText('GOAL', goal.x-10, goal.y-10);
+  // 玩家
+  if (player.alive) {
+    ctx.fillStyle = '#09f';
+    ctx.fillRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
+  }
+}
+
+function showInfo() {
+  if (player.win) info.innerHTML = `過關！分數：${player.score} <br> 按F5重新開始`;
+  else if (!player.alive) info.innerHTML = `失敗！分數：${player.score} <br> 按F5重新開始`;
+  else info.innerHTML = `分數：${player.score} / ${coins.length}`;
+}
+
+function gameLoop() {
+  updatePlayer();
+  updateEnemies();
+  updateCoins();
+  checkGoal();
+  draw();
+  showInfo();
+  requestAnimationFrame(gameLoop);
+}
+gameLoop();
+  </script>
+</body>
+</html> 
